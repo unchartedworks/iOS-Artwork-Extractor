@@ -333,6 +333,13 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 
 - (void) addImage:(UIImage *)image filePath:(NSString *)filePath
 {
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self _addImage:image filePath:filePath];
+	});
+}
+
+- (void) _addImage:(UIImage *)image filePath:(NSString *)filePath
+{
 	NSString *oppositeInterfaceIdiomSuffix = [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPhone ? @"~ipad" : @"~iphone";
 	if ([filePath rangeOfString:oppositeInterfaceIdiomSuffix].location != NSNotFound)
 		return;
@@ -406,7 +413,9 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 	[cells addObject:cell];
 	
 	NSString *progress = [NSString stringWithFormat:@"%@ (%u)", [bundleName stringByDeletingPathExtension], [cells count]];
-	[self.navigationItem performSelectorOnMainThread:@selector(setTitle:) withObject:progress waitUntilDone:NO];
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		[self.navigationItem performSelectorOnMainThread:@selector(setTitle:) withObject:progress waitUntilDone:NO];
+	});
 }
 
 - (void) loadImages
@@ -415,17 +424,20 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 	
 	for (NSString *imageName in [[self.artwork allKeys] sortedArrayUsingSelector:@selector(localizedCompare:)])
 		[self addImage:[self.artwork objectForKey:imageName] filePath:imageName];
-	
+
+	NSRegularExpression *scaleModifierRegex = [NSRegularExpression regularExpressionWithPattern:@"@[23]x" options:NSRegularExpressionCaseInsensitive error:nil];
+
 	if ([self isArtwork])
 	{
 		for (NSString *relativePath in [[NSFileManager defaultManager] enumeratorAtPath:systemRoot()])
 		{
-			BOOL scale1 = [UIScreen mainScreen].scale == 1 && [[relativePath lowercaseString] rangeOfString:@"@2x"].location == NSNotFound;
+			BOOL scale1 = [UIScreen mainScreen].scale == 1 && [scaleModifierRegex rangeOfFirstMatchInString:relativePath options:0 range:NSMakeRange(0, [relativePath length])].location == NSNotFound;
 			BOOL scale2 = [UIScreen mainScreen].scale == 2 && [[relativePath lowercaseString] rangeOfString:@"@2x"].location != NSNotFound;
+			BOOL scale3 = [UIScreen mainScreen].scale == 3 && [[relativePath lowercaseString] rangeOfString:@"@3x"].location != NSNotFound;
 			NSString *filePath = [systemRoot() stringByAppendingPathComponent:relativePath];
 			NSBundle *bundle = [NSBundle bundleWithPath:[filePath stringByDeletingLastPathComponent]];
 			NSString *archiveName = [[relativePath lastPathComponent] stringByDeletingPathExtension];
-			if ([relativePath hasSuffix:@"png"] && (scale1 || scale2))
+			if ([relativePath hasSuffix:@"png"] && (scale1 || scale2 || scale3))
 			{
 				NSString *filePath = [systemRoot() stringByAppendingPathComponent:relativePath];
 				[self addImage:imageWithContentsOfFile(filePath) filePath:filePath];
@@ -461,8 +473,9 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 					UIImage *image = [assetManager imageNamed:renditionName];
 					NSString *pseudoBundlePath = [[relativePath stringByDeletingLastPathComponent] stringByAppendingFormat:@" %@", archiveName];
 					NSString *filePath = [[pseudoBundlePath stringByAppendingPathComponent:renditionName] stringByAppendingPathExtension:@"png"];
-					if ([image scale] == [[UIScreen mainScreen] scale])
+					if (image.scale == [UIScreen mainScreen].scale) {
 						[self addImage:image filePath:filePath];
+					}
 				}
 			}
 		}
@@ -472,9 +485,10 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 		for (NSString *imageName in self.archive.imageNames)
 		{
 			NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-			BOOL scale1 = [UIScreen mainScreen].scale == 1 && [[imageName lowercaseString] rangeOfString:@"@2x"].location == NSNotFound;
+			BOOL scale1 = [UIScreen mainScreen].scale == 1 && [scaleModifierRegex rangeOfFirstMatchInString:imageName options:0 range:NSMakeRange(0, [imageName length])].location == NSNotFound;
 			BOOL scale2 = [UIScreen mainScreen].scale == 2 && [[imageName lowercaseString] rangeOfString:@"@2x"].location != NSNotFound;
-			if ([imageName hasSuffix:@"png"] && (scale1 || scale2))
+			BOOL scale3 = [UIScreen mainScreen].scale == 3 && [[imageName lowercaseString] rangeOfString:@"@3x"].location != NSNotFound;
+			if ([imageName hasSuffix:@"png"] && (scale1 || scale2 || scale3))
 			{
 				[self addImage:[self.archive imageNamed:imageName] filePath:imageName];
 			}
@@ -569,7 +583,7 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 		self.saveAllButton.enabled = YES;
 		AppDelegate *appDelegate = [UIApplication sharedApplication].delegate;
 		NSString *message = [NSString stringWithFormat:@"Artwork has been saved into\n\"%@\"", [[appDelegate saveDirectory:nil] stringByAbbreviatingWithTildeInPath]];
-		UIAlertView *alertView = [[[UIAlertView alloc] initWithTitle:nil message:message delegate:self cancelButtonTitle:@"OK" otherButtonTitles:@"Open", nil] autorelease];
+		UIAlertView *alertView = [[[UIAlertView alloc] initWithTitle:nil message:message delegate:self cancelButtonTitle:@"OK" otherButtonTitles:nil, nil] autorelease];
 		[alertView show];
 	}
 	self.progressView.progress = ((CGFloat)self.saveCounter / (CGFloat)count);
@@ -582,7 +596,9 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 	
 	AppDelegate *appDelegate = [UIApplication sharedApplication].delegate;
 	NSString *openCommand = [NSString stringWithFormat:@"/usr/bin/open \"%@\"", [appDelegate saveDirectory:nil]];
-	system([openCommand fileSystemRepresentation]);
+	#if TARGET_IPHONE_SIMULATOR
+	//system([openCommand fileSystemRepresentation]);
+	#endif
 }
 
 // MARK: -
@@ -610,7 +626,7 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 
 - (NSArray *) cellsInSection:(NSUInteger)section
 {
-	if ([[self sectionKeys] count] == 0)
+	if ([[self sectionKeys] count] == 0 || section >= [[self sectionKeys] count])
 		return nil;
 	
 	NSString *bundleName = [[self sectionKeys] objectAtIndex:section];
@@ -662,10 +678,16 @@ static UIImage *imageWithContentsOfFile(NSString *path)
 
 - (UITableViewCell *) tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-	if (tableView == self.tableView)
-		return [[self cellsInSection:indexPath.section] objectAtIndex:indexPath.row];
-	else
+	if (tableView == self.tableView) {
+		NSArray *cells = [self cellsInSection:indexPath.section];
+		if (cells != nil && [cells count] > indexPath.row) {
+			return [cells objectAtIndex:indexPath.row];
+		} else {
+			return [[UITableViewCell alloc] init];
+		}
+	} else {
 		return [[self filteredCells] objectAtIndex:indexPath.row];
+	}
 }
 
 // MARK: -

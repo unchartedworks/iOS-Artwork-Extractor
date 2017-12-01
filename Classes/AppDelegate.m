@@ -5,11 +5,13 @@
 //  Created by Cédric Luthi on 19.02.10.
 //  Copyright Cédric Luthi 2010. All rights reserved.
 //
+#import <sys/utsname.h>
 
 #import "AppDelegate.h"
 
 #import <pwd.h>
 #import "IPAViewController.h"
+NSString* deviceModel();
 
 @implementation AppDelegate
 
@@ -42,9 +44,8 @@
 		[archives addObject:ipaPath];
 	}
 	
-	NSUInteger ipaViewControllerIndex = 2;
-	if ([archives count] == 0)
-	{
+	NSUInteger ipaViewControllerIndex = 1;
+	if ([archives count] == 0){
 		NSMutableArray *viewControllers = [NSMutableArray arrayWithArray:self.tabBarController.viewControllers];
 		[viewControllers removeObjectAtIndex:ipaViewControllerIndex];
 		self.tabBarController.viewControllers = viewControllers;
@@ -97,7 +98,9 @@
 	if (!saveDirectory)
 	{
 #if TARGET_IPHONE_SIMULATOR
-		saveDirectory = [NSString stringWithFormat:@"%@/Desktop/%@ %@ artwork", [self homeDirectory], [UIDevice currentDevice].model, [UIDevice currentDevice].systemVersion];
+		NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+		NSArray *components = [documentDirectory componentsSeparatedByString:@"/"];
+		saveDirectory = [NSString stringWithFormat:@"/%@/%@/Desktop/Artwork-%@/", components[1], components[2], deviceModel()];
 #else
 		saveDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
 #endif
@@ -117,3 +120,8 @@
 }
 
 @end
+
+NSString* deviceModel()
+{
+	return [[UIDevice currentDevice] model];
+}

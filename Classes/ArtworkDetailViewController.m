@@ -7,7 +7,7 @@
 //
 
 #import "ArtworkDetailViewController.h"
-
+#import "AppDelegate.h"
 
 @interface ArtworkDetailViewController ()
 @property (nonatomic, retain) NSDictionary *imageInfo;
@@ -79,6 +79,11 @@
 	NSUInteger artworkViewControllerIndex = [self.navigationController.viewControllers count] - 2;
 	id artworkViewController = [self.navigationController.viewControllers objectAtIndex:artworkViewControllerIndex];
 	[artworkViewController performSelector:@selector(saveImage:) withObject:imageInfo];
+	
+	AppDelegate *appDelegate = [UIApplication sharedApplication].delegate;
+	NSString *message = [NSString stringWithFormat:@"Image has been saved into\n\"%@\"", [[appDelegate saveDirectory:nil] stringByAbbreviatingWithTildeInPath]];
+	UIAlertView *alertView = [[[UIAlertView alloc] initWithTitle:nil message:message delegate:self cancelButtonTitle:@"OK" otherButtonTitles:nil, nil] autorelease];
+	[alertView show];
 }
 
 @end
